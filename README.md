@@ -14,7 +14,7 @@
 
 2. **後端伺服器 (Flask Web + API)**  
    - `/api/events`：接收自走車上報的違規事件並寫入 SQLite / CSV  
-   - `/`：Dashboard（今日違規次數 + 最新事件）  
+   - `/Dashboard`：今日違規次數 + 最新事件）  
    - `/events`：違規事件列表 + 截圖  
    - `/stats`：統計頁面，包含：
      - 今日各時段違規次數
