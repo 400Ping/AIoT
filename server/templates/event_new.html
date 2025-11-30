@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">新增事件（管理員）</h2>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if error %}
+          <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">違規時間</label>
+            <input type="datetime-local"
+                   name="timestamp"
+                   class="form-control"
+                   value="{{ default_timestamp }}">
+            <div class="form-text">
+              預設為現在時間，你也可以調整成過去的違規時間。
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">攝影機 ID</label>
+            <input type="text" name="camera_id" class="form-control"
+                   placeholder="例如 car-01，可留白">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">畫面中人數</label>
+            <input type="number" name="num_people" class="form-control" value="1" min="0">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">未戴安全帽人數</label>
+            <input type="number" name="num_no_helmet" class="form-control" value="1" min="0">
+            <div class="form-text">&gt; 0 則自動標為 Unsafe，否則 Safe。</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">截圖 URL（選填）</label>
+            <input type="text" name="image_url" class="form-control"
+                   placeholder="/static/violations/example.jpg">
+          </div>
+
+          <button type="submit" class="btn btn-primary">新增</button>
+          <a href="{{ url_for('events_page') }}" class="btn btn-secondary ms-2">取消</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

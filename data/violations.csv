@@ -1,0 +1,6 @@
+id,timestamp,camera_id,status,num_people,num_no_helmet,image_url
+4,2025-11-30T20:30:35,rfef,unsafe,19,4,
+3,2025-11-30T20:30:25,dqad,unsafe,3,2,
+2,2025-11-30T20:30:08,qdqdq,unsafe,4,3,
+1,2025-11-30T20:29:50,sds,unsafe,1,1,
+5,2025-11-11T20:37:00,,unsafe,34,23,

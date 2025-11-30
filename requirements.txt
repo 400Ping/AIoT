@@ -1,0 +1,10 @@
+requests
+python-dotenv
+flask
+flask-login
+pandas
+matplotlib
+ultralytics
+opencv-python
+ultralytics
+opencv-python

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">Dashboard</h2>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">今日違規次數</h5>
+        <p class="display-5">{{ today_count }}</p>
+        <a href="{{ url_for('events_page') }}" class="btn btn-outline-primary btn-sm">查看所有事件</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">最近一次違規</h5>
+        {% if last_event %}
+          <p class="mb-1">時間：{{ last_event.timestamp }}</p>
+          <p class="mb-1">攝影機：{{ last_event.camera_id or '-' }}</p>
+          <p class="mb-2">未戴帽：{{ last_event.num_no_helmet }}</p>
+          {% if last_event.image_url %}
+            <a href="{{ last_event.image_url }}" target="_blank">
+              <img src="{{ last_event.image_url }}" class="img-fluid rounded">
+            </a>
+          {% endif %}
+        {% else %}
+          <p>目前沒有任何違規事件 🎉</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
