@@ -8,3 +8,4 @@ ultralytics
 opencv-python
 ultralytics
 opencv-python
+readchar
