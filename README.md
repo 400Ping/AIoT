@@ -49,7 +49,7 @@ AIoT/
       violations/        # 存放違規截圖（由偵測端寫入）
   detector/
     __init__.py          # 將 detector 標記為 Python package 
-    car_main.py          # 主程式：WASD 控車 + YOLO 偵測 + 上報
+    car_main.py          # 主程式：WASD 控車 + YOLO 偵測 + 上報（單一流程，可關閉手動控制）
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
     hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
@@ -63,6 +63,7 @@ AIoT/
     build/               # CMake 產物 (保留一份，其他重複 build 已移除)
     benchmark.py         # Python 端跑 cuda_lib.preprocess 效能測試
     test_run.py          # 簡易連續推論前處理迴圈
+    tools.py             # fix/test/benchmark 統一入口
 
 
 config.py設定腳位
@@ -81,3 +82,15 @@ admin / admin123
 Raspberry PI
 cd detector
 python car_main.py
+
+## 偵測模式與手動控制
+
+- 檢查 CUDA 模組 (只檢查後退出)：  
+  `python car_main.py --diagnose`
+
+- 偵測 + 手動控制 (預設同時開)：  
+  `python car_main.py --source 0`  
+  `--source` 可用攝影機索引或影片路徑，`--model` 可覆寫模型路徑（預設 config.MODEL_PATH，找不到會自動 fallback 到 `detector/models/best.pt`）。
+
+- WASD 操控（與偵測同時運行）：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。若只想關閉手動控制，加入 `--no-manual`。
+- 需終端支援即時按鍵輸入；GPIO 控制請在樹莓派環境執行。
