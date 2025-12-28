@@ -51,11 +51,18 @@ AIoT/
     __init__.py          # 將 detector 標記為 Python package 
     car_main.py          # 主程式：WASD 控車 + YOLO 偵測 + 上報
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
-    hardware.py          # LED / Buzzer / Button 控制（gpiozero）
+    hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
     config.py            # SERVER_URL, MODEL_PATH, IMG_SAVE_DIR, GPIO 腳位等
     models/
-      best.pt            # 訓練好的 YOLO 安全帽模型（部署時放這裡）
+      best.pt            # 訓練好的 YOLO 安全帽模型（唯一使用的模型放這裡）
+  cuda_kernels/          # CUDA 前/後處理模組（單一路徑集中 build，不再放模型檔）
+    CMakeLists.txt       # 以 pybind11 建出 Python 模組 cuda_lib
+    src/                 # preprocess/postprocess CUDA 與綁定
+    tests/               # CUDA 單元測試 (C++)
+    build/               # CMake 產物 (保留一份，其他重複 build 已移除)
+    benchmark.py         # Python 端跑 cuda_lib.preprocess 效能測試
+    test_run.py          # 簡易連續推論前處理迴圈
 
 
 config.py設定腳位
