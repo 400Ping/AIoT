@@ -6,6 +6,6 @@ pandas
 matplotlib
 ultralytics
 opencv-python
-ultralytics
-opencv-python
 readchar
+numpy
+pybind11
