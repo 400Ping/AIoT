@@ -18,7 +18,6 @@ import os
 import cv2
 import numpy as np
 import torch
-from ultralytics import YOLO
 import termios
 import tty
 import time
@@ -26,6 +25,10 @@ import threading
 import select
 
 import config
+from cuda_runtime import (
+    CudaHelmetPipeline,
+    diagnose_cuda_lib,
+)
 
 try:
     from motor_controller import MotorController
@@ -36,68 +39,9 @@ except Exception as exc:  # pragma: no cover - runtime guard
     MOTOR_IMPORT_ERROR = exc
 
 
-def find_cuda_paths():
-    project_root = Path(__file__).resolve().parent.parent
-    cuda_dir = project_root / "cuda_kernels"
-    candidates = [
-        cuda_dir / "build",
-        cuda_dir / "build" / "Release",
-        cuda_dir / "build" / "Debug",
-        cuda_dir / "build" / "lib",
-    ]
-    return [p for p in candidates if p.exists()]
-
-
-def diagnose_cuda_lib():
-    paths = find_cuda_paths()
-    search_list = [str(p) for p in paths]
-    print(f"[Info] 搜尋 cuda_lib 路徑：{search_list or '無'}")
-
-    found_files = []
-    for p in paths:
-        for f in p.iterdir():
-            if "cuda_lib" in f.name and (f.suffix in {".so", ".pyd"}):
-                found_files.append(f)
-                print(f"[Info] 發現檔案：{f}")
-
-    try:
-        import cuda_lib  # type: ignore
-
-        print(f"[Success] 成功載入 cuda_lib: {cuda_lib.__file__}")
-        return True
-    except Exception as exc:  # pragma: no cover - runtime guard
-        print(f"[Error] 匯入 cuda_lib 失敗: {exc}")
-        if not found_files:
-            print("[Hint] 在搜尋路徑中找不到 cuda_lib 相關檔案，請先在 AIoT/cuda_kernels 編譯。")
-        return False
-
-
-def load_cuda_lib(verbose=False):
-    """將 cuda_kernels/build* 加入 sys.path 並載入 cuda_lib。"""
-    added = []
-    for p in find_cuda_paths():
-        sys.path.insert(0, str(p))
-        added.append(str(p))
-
-    if verbose:
-        print(f"[Info] 已加入搜尋路徑：{added or '無'}")
-
-    try:
-        import cuda_lib  # type: ignore
-    except ImportError as exc:  # pragma: no cover - runtime guard
-        raise RuntimeError(
-            f"載入 cuda_lib 失敗，已加入的搜尋路徑：{added or '無'}；請先在 AIoT/cuda_kernels 下 CMake/編譯。"
-        ) from exc
-
-    return cuda_lib
-
-
 class CudaHelmetDemo:
     def __init__(self, source=0, model_path=None, net_size=640, max_boxes=100, enable_manual=True):
-        if not torch.cuda.is_available():
-            raise RuntimeError("找不到 CUDA 裝置，請確認有 GPU 環境並安裝對應 CUDA。")
-
-        self.cuda_lib = load_cuda_lib()
+        self.pipeline = None
         self.stop_event = threading.Event()
         self.manual_thread = None
         if enable_manual:
@@ -118,8 +62,6 @@ class CudaHelmetDemo:
             else:
                 raise FileNotFoundError(f"找不到模型檔：{model_path}，且預設 {repo_model} 也不存在")
 
-        self.model = YOLO(model_path)
-
         self.cap = cv2.VideoCapture(source)
         if not self.cap.isOpened():
             raise RuntimeError(f"無法開啟攝影機 source={source}，請使用 --source <index|video 路徑>")
@@ -127,48 +69,18 @@ class CudaHelmetDemo:
         self.src_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.src_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        # 預先配置 GPU 記憶體
-        self.d_src = torch.empty(
-            (self.src_h, self.src_w, 3), dtype=torch.uint8, device=self.device
+        self.pipeline = CudaHelmetPipeline(
+            model_path=model_path,
+            net_size=self.net_w,
+            max_boxes=self.max_boxes,
         )
-        self.d_dst = torch.empty(
-            (1, 3, self.net_h, self.net_w), dtype=torch.float32, device=self.device
-        )
-        self.d_dets = torch.zeros(
-            (self.max_boxes, 6), dtype=torch.float32, device=self.device
-        )
-        self.d_heatmap = torch.zeros(
-            (self.src_h, self.src_w), dtype=torch.float32, device=self.device
-        )
+        self.model = self.pipeline.model
+        # 先配置 buffer，必要時會自動調整
+        dummy_frame = np.zeros((self.src_h, self.src_w, 3), dtype=np.uint8)
+        self.pipeline.ensure_buffers(dummy_frame)
+
         if self.manual_thread:
             self.manual_thread.start()
-
-    def preprocess(self, frame: np.ndarray):
-        # Host -> Device
-        self.d_src.copy_(torch.from_numpy(frame).to(self.device, non_blocking=True))
-
-        # CUDA kernel resize/normalize
-        self.cuda_lib.preprocess_ptr(
-            self.d_src.data_ptr(),
-            self.d_dst.data_ptr(),
-            self.src_w,
-            self.src_h,
-            self.net_w,
-            self.net_h,
-        )
-
-    def postprocess_heatmap(self, num_boxes: int, conf_thresh=0.5, target_class=0):
-        self.cuda_lib.postprocess_ptr(
-            self.d_dets.data_ptr(),
-            self.d_heatmap.data_ptr(),
-            num_boxes,
-            self.src_w,
-            self.src_h,
-            float(conf_thresh),
-            int(target_class),
-            0.95,  # decay
-        )
-        return self.d_heatmap.cpu().numpy()
 
     def run(self):
         print("開始 CUDA Helmet Demo，按 q 離開。")
@@ -179,22 +91,8 @@ class CudaHelmetDemo:
                     print("讀取影像失敗，結束。")
                     break
 
-                # 預處理到 GPU
-                self.preprocess(frame)
-
-                # YOLO 推論 (直接吃 GPU tensor)
-                results = self.model(self.d_dst, verbose=False)
-                num_boxes = 0
-                if results and results[0].boxes is not None:
-                    det = results[0].boxes
-                    boxes = torch.cat(
-                        [det.xywhn, det.conf.unsqueeze(1), det.cls.unsqueeze(1)], dim=1
-                    )
-                    num_boxes = min(len(boxes), self.max_boxes)
-                    self.d_dets[:num_boxes] = boxes[:num_boxes]
-
-                # 後處理 heatmap
-                heatmap = self.postprocess_heatmap(num_boxes, conf_thresh=0.5, target_class=0)
+                result = self.pipeline.run_frame(frame, conf_thresh=0.5, target_class=0, decay=0.95)
+                heatmap = result["heatmap"]
                 heatmap_vis = (np.clip(heatmap, 0, 1) * 255).astype(np.uint8)
                 heatmap_color = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
                 display = cv2.addWeighted(frame, 0.6, heatmap_color, 0.4, 0)

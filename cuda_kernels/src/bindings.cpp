@@ -67,6 +67,22 @@ pybind11::array_t<float> py_preprocess(pybind11::array_t<uint8_t, pybind11::arra
     return output;
 }
 
+// 設定前處理的 mean/std
+void py_set_preprocess_norm(py::sequence mean_seq, py::sequence std_seq, bool enable) {
+    if (py::len(mean_seq) != 3 || py::len(std_seq) != 3) {
+        throw py::value_error("mean/std 需要長度為 3 的序列");
+    }
+
+    float mean[3];
+    float std[3];
+    for (int i = 0; i < 3; ++i) {
+        mean[i] = mean_seq[i].cast<float>();
+        std[i] = std_seq[i].cast<float>();
+    }
+
+    set_preprocess_normalization(mean, std, enable);
+}
+
 // Wrapper for Postprocess
 void py_postprocess_ptr(
     long long d_dets_addr,    
@@ -100,5 +116,6 @@ PYBIND11_MODULE(cuda_lib, m) {
 
     m.def("preprocess", &py_preprocess, "Preprocess numpy array and return CHW float32");
     m.def("preprocess_ptr", &py_preprocess_ptr, "Preprocess taking GPU pointers");
+    m.def("set_preprocess_norm", &py_set_preprocess_norm, py::arg("mean"), py::arg("std"), py::arg("enable") = true, "設定 mean/std 正規化（預設關閉）");
     m.def("postprocess_ptr", &py_postprocess_ptr, "Postprocess heatmap generation");
 }

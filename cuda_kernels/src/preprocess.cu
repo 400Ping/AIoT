@@ -4,6 +4,11 @@
 // [重要] 移除了 <math.h> 與 <algorithm> 以避開 VS2022 STL 衝突
 // [重要] 移除了 #define NOMINMAX (CMakeLists.txt 已經定義了)
 
+// mean/std 會放在 constant memory，避免每次呼叫都重新讀 host 端
+__constant__ float c_mean[3] = {0.0f, 0.0f, 0.0f};
+__constant__ float c_inv_std[3] = {1.0f, 1.0f, 1.0f};
+__constant__ int c_norm_enabled = 0;  // 0: 關閉（預設）；1: 啟用 mean/std 正規化
+
 __global__ void preprocess_kernel(
     const unsigned char* __restrict__ src, 
     float* __restrict__ dst, 
@@ -63,9 +68,28 @@ __global__ void preprocess_kernel(
         unsigned char v4 = src[y_high * src_pitch + x_high * 3 + src_c];
 
         float val = w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4;
-        
-        dst[dst_idx + c * channel_stride] = val / 255.0f;
+
+        val = val / 255.0f;
+        if (c_norm_enabled) {
+            val = (val - c_mean[c]) * c_inv_std[c];
+        }
+
+        dst[dst_idx + c * channel_stride] = val;
     }
+}
+
+void set_preprocess_normalization(const float mean[3], const float std[3], bool enable) {
+    float host_inv_std[3];
+    for (int i = 0; i < 3; ++i) {
+        // 避免除以 0
+        host_inv_std[i] = (std[i] != 0.0f) ? (1.0f / std[i]) : 1.0f;
+    }
+
+    cudaMemcpyToSymbol(c_mean, mean, sizeof(float) * 3);
+    cudaMemcpyToSymbol(c_inv_std, host_inv_std, sizeof(float) * 3);
+
+    int flag = enable ? 1 : 0;
+    cudaMemcpyToSymbol(c_norm_enabled, &flag, sizeof(int));
 }
 
 void launch_preprocess(const unsigned char* d_src, float* d_dst, int src_w, int src_h, int dst_w, int dst_h) {

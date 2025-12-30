@@ -68,29 +68,43 @@ AIoT/
 
 config.py設定腳位
 cd AIoT
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 
 pip install -r requirements.txt
 
-Server side
-cd server
-python app.py
+## 當天 Demo 操作流程（一步一步）
 
-admin / admin123
+1) 啟動虛擬環境與依賴（首次）
+- `cd AIoT`
+- `python -m venv .venv`
+- `source .venv/bin/activate`
+- `pip install -r requirements.txt`
 
-Raspberry PI
-cd detector
-python car_main.py
+2) 啟動後端 Flask + LINE 通知
+- 進入 server：`cd server`
+- 設定 LINE env（若要推播）：`export LINE_CHANNEL_ACCESS_TOKEN=...`、`export LINE_USER_ID=...`
+- 啟動：`python app.py`
+- 後台登入帳密：`admin / admin123`
 
-## 偵測模式與手動控制
+3) 準備模型與路徑
+- 預設模型：`detector/models/best.pt`，或在 `detector/config.py` 的 `MODEL_PATH` 改成你的實際路徑。
+- 違規截圖輸出目錄：`config.IMG_SAVE_DIR`（若在筆電/桌機，可改成 repo 相對路徑 `server/static/violations` 的絕對路徑），請確保目錄存在且 Flask 靜態檔路徑一致。
 
-- 檢查 CUDA 模組 (只檢查後退出)：  
-  `python car_main.py --diagnose`
+4) 檢查 CUDA 模組（可選）
+- `cd detector`
+- `python car_main.py --diagnose` 或 `python cuda_demo.py --diagnose`
 
-- 偵測 + 手動控制 (預設同時開)：  
-  `python car_main.py --source 0`  
-  `--source` 可用攝影機索引或影片路徑，`--model` 可覆寫模型路徑（預設 config.MODEL_PATH，找不到會自動 fallback 到 `detector/models/best.pt`）。
+5) Demo（不帶自走車，僅鏡頭 + 事件 + LED/蜂鳴器）
+- 建議用筆電/Jetson：`python cuda_demo.py --source 0`
+- 參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 3 秒）。
+- 當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
 
-- WASD 操控（與偵測同時運行）：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。若只想關閉手動控制，加入 `--no-manual`。
-- 需終端支援即時按鍵輸入；GPIO 控制請在樹莓派環境執行。
+6) Demo（帶自走車 + WASD）
+- `python car_main.py --source 0`
+- `--no-manual` 可關閉手動控制；`--model` 可自訂模型路徑。
+- 控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
+
+7) 預期畫面與觀察點
+- OpenCV 視窗顯示原始畫面 + heatmap 疊圖。
+- 終端會印出違規事件觸發，Flask 後台事件列表應同步新增；若 LINE 設好，會收到文字/圖片通知。
