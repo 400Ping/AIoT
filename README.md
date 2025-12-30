@@ -1,24 +1,24 @@
-# Smart PPE Autocar 🚧🚗
+# Smart Personal Protective Equipment System
 
-智慧工安自走車系統：使用 YOLO 偵測工程帽 (Hard Hat)，
-當發現未佩戴安全帽時，自走車上會觸發 LED 與蜂鳴器警示，
-並且透過 Flask 後端記錄違規事件、產生統計圖表，以及推播 LINE 通知。
+智慧工安系統：使用 YOLO 偵測工程帽 (Hard Hat)，
+當發現未佩戴安全帽時，會觸發 LED / 蜂鳴器警示，並透過 Flask 後端記錄違規事件、
+產生統計圖表，以及推播 LINE 通知。偵測端支援 CUDA kernel 加速（`cuda_kernels` + `cuda_runtime`），
+可在 Jetson / 筆電 GPU 直接跑，並提供無自走車版 demo。
 
 系統分成兩個主要部分：
 
-1. **偵測端 (Raspberry Pi + 自走車)**  
+1. **偵測端 (Jetson Nano / Raspberry Pi + 自走車或筆電 GPU)**  
    - USB 攝影機 + YOLO 模型偵測工程帽  
-   - 馬達控制（WASD 鍵控制小車前進/後退/轉彎）  
+   - CUDA 前處理/後處理 kernel（pybind11 `cuda_lib`）加速 resize/heatmap  
+   - 馬達控制（WASD 鍵控制小車前進/後退/轉彎，可選）  
    - LED / 蜂鳴器 / 按鈕 警示系統  
-   - 偵測到違規事件時，自動呼叫 Flask `/api/events` 上報
+   - 偵測到違規事件時，自動呼叫 Flask `/api/events` 上報（含截圖，並可推 LINE）
 
 2. **後端伺服器 (Flask Web + API)**  
-   - `/api/events`：接收自走車上報的違規事件並寫入 SQLite / CSV  
-   - `/Dashboard`：今日違規次數 + 最新事件）  
+   - `/api/events`：接收上報並寫入 SQLite / CSV  
+   - `/Dashboard`：今日違規次數 + 最新事件  
    - `/events`：違規事件列表 + 截圖  
-   - `/stats`：統計頁面，包含：
-     - 今日各時段違規次數
-     - 歷史每日違規次數圖，支援縮放 / 平移（Chart.js + chartjs-plugin-zoom）  
+   - `/stats`：統計頁面（今日各時段違規數、歷史每日違規數，支援縮放/平移）  
    - `/download_csv`：下載 CSV 報表  
    - 會員系統（Flask-Login）：管理員登入後可新增 / 刪除 / 清空事件  
    - 整合 LINE Messaging API 推播違規事件（文字＋截圖）
@@ -49,7 +49,9 @@ AIoT/
       violations/        # 存放違規截圖（由偵測端寫入）
   detector/
     __init__.py          # 將 detector 標記為 Python package 
-    car_main.py          # 主程式：WASD 控車 + YOLO 偵測 + 上報（單一流程，可關閉手動控制）
+    cuda_runtime.py      # 封裝 cuda_lib 載入、GPU 前處理/後處理、YOLO 推論
+    cuda_demo.py         # 只用鏡頭的 CUDA Demo（無自走車），會疊 heatmap、上報事件、觸發 LED/蜂鳴器
+    car_main.py          # 主程式：WASD 控車 + CUDA YOLO 偵測 + 上報（可關閉手動控制）
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
     hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
@@ -58,9 +60,9 @@ AIoT/
       best.pt            # 訓練好的 YOLO 安全帽模型（唯一使用的模型放這裡）
   cuda_kernels/          # CUDA 前/後處理模組（單一路徑集中 build，不再放模型檔）
     CMakeLists.txt       # 以 pybind11 建出 Python 模組 cuda_lib
-    src/                 # preprocess/postprocess CUDA 與綁定
+    src/                 # preprocess/postprocess CUDA 與綁定 (pybind11 -> cuda_lib)
     tests/               # CUDA 單元測試 (C++)
-    build/               # CMake 產物 (保留一份，其他重複 build 已移除)
+    build/               # CMake 產物 (預期放置 cuda_lib.so/pyd)
     benchmark.py         # Python 端跑 cuda_lib.preprocess 效能測試
     test_run.py          # 簡易連續推論前處理迴圈
     tools.py             # fix/test/benchmark 統一入口
@@ -96,12 +98,12 @@ pip install -r requirements.txt
 - `python car_main.py --diagnose` 或 `python cuda_demo.py --diagnose`
 
 5) Demo（不帶自走車，僅鏡頭 + 事件 + LED/蜂鳴器）
-- 建議用筆電/Jetson：`python cuda_demo.py --source 0`
+- 建議用筆電/Jetson：`python cuda_demo.py`（預設 `--source 0`），若要指定其他鏡頭或影片，可加 `--source <index|video.mp4>`
 - 參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 3 秒）。
 - 當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
 
 6) Demo（帶自走車 + WASD）
-- `python car_main.py --source 0`
+- `python car_main.py`（預設 `--source 0`；可改 `--source <index|video.mp4>`）
 - `--no-manual` 可關閉手動控制；`--model` 可自訂模型路徑。
 - 控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
 
