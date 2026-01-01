@@ -16,7 +16,7 @@
 
 2. **後端伺服器 (Flask Web + API)**  
    - `/api/events`：接收上報並寫入 SQLite / CSV  
-   - `/Dashboard`：今日違規次數 + 最新事件  
+   - `/`：今日違規次數 + 最新事件  
    - `/events`：違規事件列表 + 截圖  
    - `/stats`：統計頁面（今日各時段違規數、歷史每日違規數，支援縮放/平移）  
    - `/download_csv`：下載 CSV 報表  
@@ -52,6 +52,8 @@ AIoT/
     cuda_runtime.py      # 封裝 cuda_lib 載入、GPU 前處理/後處理、YOLO 推論
     cuda_demo.py         # 只用鏡頭的 CUDA Demo（無自走車），會疊 heatmap、上報事件、觸發 LED/蜂鳴器
     car_main.py          # 主程式：WASD 控車 + CUDA YOLO 偵測 + 上報（可關閉手動控制）
+    helmet_cam.py        # CPU 版 demo（不需 CUDA），含事件觸發 + 上報 + LED/蜂鳴器
+    manual_control.py    # 只做馬達手動控制（WASD），不含偵測
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
     hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
@@ -65,10 +67,43 @@ AIoT/
     build/               # CMake 產物 (預期放置 cuda_lib.so/pyd)
     benchmark.py         # Python 端跑 cuda_lib.preprocess 效能測試
     test_run.py          # 簡易連續推論前處理迴圈
-    tools.py             # fix/test/benchmark 統一入口
+    tools.py             # fix/test/benchmark 統一入口（檢查 kernel/效能）
 
 
-config.py設定腳位
+## CUDA kernel 編譯與檢查（可選但建議）
+
+CUDA 路徑會去 `cuda_kernels/build` 或 `cuda_kernels/build/Release` 尋找 `cuda_lib`，
+若沒有先編譯，`detector` 的 CUDA demo 會載入失敗。
+
+1) 編譯 `cuda_lib`
+- `cd cuda_kernels`
+- `mkdir -p build && cd build`
+- `cmake ..`
+- `cmake --build . --parallel`  
+  Windows 可加：`cmake --build . --config Release --parallel`
+
+2) 用 `tools.py` 檢查/效能測試
+- `cd cuda_kernels`
+- 快速檢查 kernel：`python tools.py test`  
+  可加參數：`--width 1920 --height 1080 --dst 640 --count 100`
+- 效能測試：`python tools.py benchmark`
+- 檔案編碼修復（遇到 CUDA 編譯或亂碼問題時）：`python tools.py fix`
+
+3) 也可用偵測端內建檢查
+- `cd detector`
+- `python cuda_demo.py --diagnose` 或 `python car_main.py --diagnose`
+
+## 環境設定
+
+`detector/config.py` 設定連線/路徑/腳位：
+- `SERVER_URL`：偵測端上報的 Flask 位址（預設為 `http://127.0.0.1:5000`）
+- `MODEL_PATH`：YOLO 模型路徑（預設 `/home/pi/AIoT/models/best.pt`）
+- `IMG_SAVE_DIR`：違規截圖存放資料夾
+- GPIO 腳位：`RED_LED_PIN / GREEN_LED_PIN / BUZZER_PIN / BUTTON_PIN`
+
+`server/app.py` 預設跑在 `5001`，若沒有改程式，請把 `SERVER_URL` 調成 `http://127.0.0.1:5001`。
+若要 LINE 圖片顯示完整網址，需額外設定 `BASE_URL`（例如 ngrok 網址）。
+
 cd AIoT
 python -m venv .venv
 source .venv/bin/activate
@@ -86,6 +121,7 @@ pip install -r requirements.txt
 2) 啟動後端 Flask + LINE 通知
 - 進入 server：`cd server`
 - 設定 LINE env（若要推播）：`export LINE_CHANNEL_ACCESS_TOKEN=...`、`export LINE_USER_ID=...`
+- 若要圖片顯示完整 URL：`export BASE_URL=https://xxxx.ngrok-free.app`
 - 啟動：`python app.py`
 - 後台登入帳密：`admin / admin123`
 
@@ -102,11 +138,17 @@ pip install -r requirements.txt
 - 參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 3 秒）。
 - 當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
 
-6) Demo（帶自走車 + WASD）
+6) Demo（CPU 版，不需 CUDA）
+- `python helmet_cam.py`（固定用攝影機 0，安全帽偵測 + 事件上報 + LED/蜂鳴器）
+
+7) Demo（帶自走車 + WASD）
 - `python car_main.py`（預設 `--source 0`；可改 `--source <index|video.mp4>`）
 - `--no-manual` 可關閉手動控制；`--model` 可自訂模型路徑。
 - 控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
 
-7) 預期畫面與觀察點
+8) 手動馬達測試（無偵測）
+- `python manual_control.py`（W/A/S/D 控制小車，Space 停止，Q 離開）
+
+9) 預期畫面與觀察點
 - OpenCV 視窗顯示原始畫面 + heatmap 疊圖。
 - 終端會印出違規事件觸發，Flask 後台事件列表應同步新增；若 LINE 設好，會收到文字/圖片通知。
