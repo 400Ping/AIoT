@@ -4,15 +4,41 @@
 import cv2
 import time
 
-from hardware import HardwareController
 from ppe_detector import PPEDetector
+
+try:
+    from hardware import HardwareController
+
+    HARDWARE_AVAILABLE = True
+    HARDWARE_ERR = None
+except Exception as exc:  # pragma: no cover - runtime guard
+    HARDWARE_AVAILABLE = False
+    HARDWARE_ERR = exc
+
+
+class DummyHardware:
+    """在非樹莓派環境下的簡易 stub。"""
+
+    def trigger_alarm(self):
+        print("[Hardware] trigger_alarm (stub)")
+
+    def clear_alarm(self):
+        print("[Hardware] clear_alarm (stub)")
+
+    def cleanup(self):
+        pass
 
 # 連續多少秒都判定為 unsafe 才算「違規事件」
 UNSAFE_THRESHOLD_SEC = 10.0  # demo 可以改成 3.0 比較快看到效果
 
 
 def main():
-    hardware = HardwareController()
+    if HARDWARE_AVAILABLE:
+        hardware = HardwareController()
+    else:
+        print(f"[Warn] 無法載入硬體控制 (LED/蜂鳴器)：{HARDWARE_ERR}")
+        print("       將使用 stub，僅列印訊息。")
+        hardware = DummyHardware()
     detector = PPEDetector()
 
     cap = cv2.VideoCapture(0)  # USB 攝影機 /dev/video0

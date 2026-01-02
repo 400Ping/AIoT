@@ -4,7 +4,11 @@ from datetime import datetime
 from ultralytics import YOLO
 import os
 import requests
-from . import config
+
+try:
+    from . import config
+except ImportError:  # allow running as a script from detector/
+    import config  # type: ignore
 
 # Hard Hat Dataset class mapping:
 # 0: helmet, 1: person, 2: head (沒戴安全帽的頭)

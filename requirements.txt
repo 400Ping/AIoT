@@ -7,5 +7,5 @@ matplotlib
 ultralytics
 opencv-python
 readchar
-numpy
+numpy<2
 pybind11

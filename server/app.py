@@ -17,6 +17,7 @@ import csv
 from datetime import datetime, date
 from line_notify import send_line_message
 import os
+from dotenv import load_dotenv, find_dotenv
 
 from flask_login import (
     LoginManager,
@@ -32,6 +33,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "violations.db"
 CSV_PATH = DATA_DIR / "violations.csv"
+
+load_dotenv(find_dotenv())
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")  # demo 用
