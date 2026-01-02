@@ -1,6 +1,6 @@
 # detector/motor_controller.py
 import time
-import RPi.GPIO as GPIO
+from gpio_compat import GPIO
 
 
 class MotorController:

@@ -2,7 +2,7 @@
 import threading
 import time
 
-import RPi.GPIO as GPIO
+from gpio_compat import GPIO
 
 import config
 

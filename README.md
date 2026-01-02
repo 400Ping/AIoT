@@ -55,7 +55,7 @@ AIoT/
     helmet_cam.py        # CPU 版 demo（不需 CUDA），含事件觸發 + 上報 + LED/蜂鳴器
     manual_control.py    # 只做馬達手動控制（WASD），不含偵測
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
-    hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO）
+    hardware.py          # LED / Buzzer / Button 控制（Jetson.GPIO / RPi.GPIO）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
     config.py            # SERVER_URL, MODEL_PATH, IMG_SAVE_DIR, GPIO 腳位等
     models/
@@ -96,9 +96,9 @@ CUDA 路徑會去 `cuda_kernels/build` 或 `cuda_kernels/build/Release` 尋找 `
 ## 環境設定
 
 `detector/config.py` 設定連線/路徑/腳位：
-- `SERVER_URL`：偵測端上報的 Flask 位址（預設為 `http://127.0.0.1:5000`）
-- `MODEL_PATH`：YOLO 模型路徑（預設 `/home/pi/AIoT/models/best.pt`）
-- `IMG_SAVE_DIR`：違規截圖存放資料夾
+- `SERVER_URL`：偵測端上報的 Flask 位址（預設為 `http://127.0.0.1:5001`，可用環境變數覆寫）
+- `MODEL_PATH`：YOLO 模型路徑（預設 `AIoT/models/best.pt`，可用環境變數覆寫）
+- `IMG_SAVE_DIR`：違規截圖存放資料夾（可用環境變數覆寫）
 - GPIO 腳位：`RED_LED_PIN / GREEN_LED_PIN / BUZZER_PIN / BUTTON_PIN`
 
 `server/app.py` 預設跑在 `5001`，若沒有改程式，請把 `SERVER_URL` 調成 `http://127.0.0.1:5001`。
@@ -109,6 +109,9 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
+
+Jetson Nano 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
+- `sudo apt-get install python3-jetson-gpio python3-opencv`
 
 ## 當天 Demo 操作流程（一步一步）
 
