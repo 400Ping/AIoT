@@ -2,7 +2,7 @@
 from pathlib import Path
 
 SERVER_URL = "https://166608653535.ngrok-free.app"  # 如果 Flask 跑在 Pi 上就用 localhost
-CAMERA_ID = "car-01"
+CAMERA_ID = "cam-01"
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = "/Users/jiec/AIoT/models/best.pt"  # 你的 YOLO 安全帽模型
