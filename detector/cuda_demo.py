@@ -16,6 +16,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 import requests
+import torch
 
 import config
 from cuda_runtime import CudaHelmetPipeline, diagnose_cuda_lib
@@ -186,6 +187,10 @@ def main(argv=None):
     if args.diagnose:
         ok = diagnose_cuda_lib()
         return 0 if ok else 1
+    if not torch.cuda.is_available():
+        print("[Error] 未偵測到 CUDA 裝置，無法執行 CUDA demo。")
+        print("        Raspberry Pi 5 請改用 `python helmet_cam.py` 或 `python car_main.py --cpu`。")
+        return 1
 
     src_arg = int(args.source) if str(args.source).isdigit() else args.source
     model_path = args.model or config.MODEL_PATH

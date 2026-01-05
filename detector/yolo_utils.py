@@ -29,7 +29,7 @@ def load_yolo_model(model_path, device=None):
         if not repo:
             raise RuntimeError(
                 "Ultralytics 無法載入，且找不到本機 YOLOv5 repo。"
-                "請設定 YOLOV5_REPO 指向 yolov5 目錄或改用 Python >= 3.7。"
+                "請設定 YOLOV5_REPO 指向 yolov5 目錄或改用 Python >= 3.12。"
             ) from exc
         model = torch.hub.load(repo, "custom", path=model_path, source="local")
         backend = "yolov5"

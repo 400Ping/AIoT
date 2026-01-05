@@ -4,8 +4,8 @@ flask
 flask-login
 pandas
 matplotlib
-ultralytics; python_version >= "3.7"
-opencv-python
+ultralytics; python_version >= "3.12"
+opencv-python; platform_machine != "aarch64" and platform_machine != "armv7l"
 readchar
 numpy<2
 pybind11

@@ -8,7 +8,7 @@ import config
 
 
 class HardwareController:
-    """用 RPi.GPIO 控制紅綠燈、蜂鳴器、按鈕。
+    """用 RPi.GPIO 相容 API 控制紅綠燈、蜂鳴器、按鈕。
 
     功能和之前用 gpiozero 的版本一致：
     - trigger_alarm(): 綠燈關、紅燈 + 蜂鳴器閃爍 / 嗶嗶叫

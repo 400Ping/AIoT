@@ -1,17 +1,11 @@
-"""GPIO compatibility layer for Jetson.GPIO / RPi.GPIO."""
+"""GPIO compatibility layer for Raspberry Pi (RPi.GPIO / rpi-lgpio)."""
 
 try:
-    import Jetson.GPIO as GPIO  # type: ignore
+    import RPi.GPIO as GPIO  # type: ignore
 
-    GPIO_PLATFORM = "jetson"
-except Exception:
-    try:
-        import RPi.GPIO as GPIO  # type: ignore
-
-        GPIO_PLATFORM = "rpi"
-    except Exception as exc:
-        raise ImportError(
-            "No supported GPIO library found. Install Jetson.GPIO on Jetson "
-            "or RPi.GPIO on Raspberry Pi."
-        ) from exc
-
+    GPIO_PLATFORM = "rpi"
+except Exception as exc:
+    raise ImportError(
+        "No supported GPIO library found. Install RPi.GPIO "
+        "or rpi-lgpio (recommended for Raspberry Pi 5)."
+    ) from exc

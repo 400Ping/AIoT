@@ -3,13 +3,13 @@
 智慧工安系統：使用 YOLO 偵測工程帽 (Hard Hat)，
 當發現未佩戴安全帽時，會觸發 LED / 蜂鳴器警示，並透過 Flask 後端記錄違規事件、
 產生統計圖表，以及推播 LINE 通知。偵測端支援 CUDA kernel 加速（`cuda_kernels` + `cuda_runtime`），
-可在 Jetson / 筆電 GPU 直接跑，並提供無自走車版 demo。
+可在 Raspberry Pi 5（CPU）/ 筆電 GPU 直接跑，並提供無自走車版 demo。
 
 系統分成兩個主要部分：
 
-1. **偵測端 (Jetson Nano / Raspberry Pi + 自走車或筆電 GPU)**  
+1. **偵測端 (Raspberry Pi 5 / 筆電 GPU + 自走車可選)**  
    - USB 攝影機 + YOLO 模型偵測工程帽  
-   - CUDA 前處理/後處理 kernel（pybind11 `cuda_lib`）加速 resize/heatmap  
+   - CUDA 前處理/後處理 kernel（pybind11 `cuda_lib`）加速 resize/heatmap（GPU 平台適用）  
    - 馬達控制（WASD 鍵控制小車前進/後退/轉彎，可選）  
    - LED / 蜂鳴器 / 按鈕 警示系統  
    - 偵測到違規事件時，自動呼叫 Flask `/api/events` 上報（含截圖，並可推 LINE）
@@ -51,11 +51,11 @@ AIoT/
     __init__.py          # 將 detector 標記為 Python package 
     cuda_runtime.py      # 封裝 cuda_lib 載入、GPU 前處理/後處理、YOLO 推論
     cuda_demo.py         # 只用鏡頭的 CUDA Demo（無自走車），會疊 heatmap、上報事件、觸發 LED/蜂鳴器
-    car_main.py          # 主程式：WASD 控車 + CUDA YOLO 偵測 + 上報（可關閉手動控制）
+    car_main.py          # 主程式：WASD 控車 + CUDA/CPU YOLO 偵測（可關閉手動控制）
     helmet_cam.py        # CPU 版 demo（不需 CUDA），含事件觸發 + 上報 + LED/蜂鳴器
     manual_control.py    # 只做馬達手動控制（WASD），不含偵測
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
-    hardware.py          # LED / Buzzer / Button 控制（Jetson.GPIO / RPi.GPIO）
+    hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO / rpi-lgpio）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
     config.py            # SERVER_URL, MODEL_PATH, IMG_SAVE_DIR, GPIO 腳位等
     models/
@@ -105,27 +105,29 @@ CUDA 路徑會去 `cuda_kernels/build` 或 `cuda_kernels/build/Release` 尋找 `
 若要 LINE 圖片顯示完整網址，需額外設定 `BASE_URL`（例如 ngrok 網址）。
 
 cd AIoT
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
 
-Jetson Nano 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
-- `sudo apt-get install python3-jetson-gpio python3-opencv`
+Raspberry Pi 5 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
+- `sudo apt-get install python3-opencv python3-rpi.gpio`
+- 若 RPi.GPIO 無法使用，可改裝 `rpi-lgpio`（提供 RPi.GPIO 相容 API）
+- 建議用 venv 時加 `--system-site-packages`，可讀到系統 OpenCV
 
-## Python 3.6 注意事項
+## Python 3.12 注意事項
 
-- `ultralytics` 只在 Python >= 3.7 安裝（`requirements.txt` 已加條件），Python 3.6 需改用 YOLOv5 後備載入。
+- `ultralytics` 只在 Python >= 3.12 安裝（`requirements.txt` 已加條件）。
 - 請先準備 YOLOv5 repo（本機資料夾）並設定環境變數：
   - `export YOLOV5_REPO=/path/to/yolov5`
   - 或直接放在 `AIoT/yolov5`
-- 需自行安裝對應版本的 PyTorch（Jetson 建議使用官方/系統套件版本）。
+- 需自行安裝對應版本的 PyTorch（Raspberry Pi 5 建議使用官方 CPU wheel，需支援 Python 3.12）。
 
 ## 當天 Demo 操作流程（一步一步）
 
 1) 啟動虛擬環境與依賴（首次）
 - `cd AIoT`
-- `python -m venv .venv`
+- `python3.12 -m venv .venv`
 - `source .venv/bin/activate`
 - `pip install -r requirements.txt`
 
@@ -140,26 +142,27 @@ Jetson Nano 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
 - 預設模型：`detector/models/best.pt`，或在 `detector/config.py` 的 `MODEL_PATH` 改成你的實際路徑。
 - 違規截圖輸出目錄：`config.IMG_SAVE_DIR`（若在筆電/桌機，可改成 repo 相對路徑 `server/static/violations` 的絕對路徑），請確保目錄存在且 Flask 靜態檔路徑一致。
 
-4) 檢查 CUDA 模組（可選）
+4) 檢查 CUDA 模組（可選，GPU 平台）
 - `cd detector`
 - `python car_main.py --diagnose` 或 `python cuda_demo.py --diagnose`
 
 5) Demo（不帶自走車，僅鏡頭 + 事件 + LED/蜂鳴器）
-- 建議用筆電/Jetson：`python cuda_demo.py`（預設 `--source 0`），若要指定其他鏡頭或影片，可加 `--source <index|video.mp4>`
+- GPU 平台：`python cuda_demo.py`（預設 `--source 0`），若要指定其他鏡頭或影片，可加 `--source <index|video.mp4>`
 - 參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 3 秒）。
 - 當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
 
-6) Demo（CPU 版，不需 CUDA）
+6) Demo（CPU 版，不需 CUDA，Raspberry Pi 5 建議）
 - `python helmet_cam.py`（固定用攝影機 0，安全帽偵測 + 事件上報 + LED/蜂鳴器）
 
 7) Demo（帶自走車 + WASD）
-- `python car_main.py`（預設 `--source 0`；可改 `--source <index|video.mp4>`）
+- `python car_main.py --cpu`（Raspberry Pi 5 建議，預設 `--source 0`；可改 `--source <index|video.mp4>`）
 - `--no-manual` 可關閉手動控制；`--model` 可自訂模型路徑。
+- CPU 模式也會依連續 unsafe 時間觸發事件，上報門檻可用 `--unsafe-threshold` 調整。
 - 控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
 
 8) 手動馬達測試（無偵測）
 - `python manual_control.py`（W/A/S/D 控制小車，Space 停止，Q 離開）
 
 9) 預期畫面與觀察點
-- OpenCV 視窗顯示原始畫面 + heatmap 疊圖。
+- CUDA 模式會顯示原始畫面 + heatmap 疊圖，CPU 模式會疊狀態文字。
 - 終端會印出違規事件觸發，Flask 後台事件列表應同步新增；若 LINE 設好，會收到文字/圖片通知。
