@@ -113,6 +113,14 @@ pip install -r requirements.txt
 Jetson Nano 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
 - `sudo apt-get install python3-jetson-gpio python3-opencv`
 
+## Python 3.6 注意事項
+
+- `ultralytics` 只在 Python >= 3.7 安裝（`requirements.txt` 已加條件），Python 3.6 需改用 YOLOv5 後備載入。
+- 請先準備 YOLOv5 repo（本機資料夾）並設定環境變數：
+  - `export YOLOV5_REPO=/path/to/yolov5`
+  - 或直接放在 `AIoT/yolov5`
+- 需自行安裝對應版本的 PyTorch（Jetson 建議使用官方/系統套件版本）。
+
 ## 當天 Demo 操作流程（一步一步）
 
 1) 啟動虛擬環境與依賴（首次）

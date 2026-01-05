@@ -12,6 +12,7 @@ from flask import (
     abort,
 )
 from pathlib import Path
+from typing import Optional
 import sqlite3
 import csv
 from datetime import datetime, date
@@ -59,7 +60,7 @@ def get_db_connection():
     return conn
 
 
-def get_user_by_id(user_id: str) -> User | None:
+def get_user_by_id(user_id: str) -> Optional[User]:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -73,7 +74,7 @@ def get_user_by_id(user_id: str) -> User | None:
     return None
 
 
-def get_user_by_username(username: str) -> User | None:
+def get_user_by_username(username: str) -> Optional[User]:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(

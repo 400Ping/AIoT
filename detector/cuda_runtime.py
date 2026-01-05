@@ -10,7 +10,11 @@ import sys
 from typing import Tuple, Dict, Any
 
 import torch
-from ultralytics import YOLO
+
+try:
+    from .yolo_utils import load_yolo_model, yolo_boxes_xywhn, yolo_predict
+except ImportError:  # allow running as a script from detector/
+    from yolo_utils import load_yolo_model, yolo_boxes_xywhn, yolo_predict  # type: ignore
 
 
 def find_cuda_paths():
@@ -78,8 +82,7 @@ class CudaHelmetPipeline:
 
         self.cuda_lib = load_cuda_lib(verbose=verbose)
         self.device = torch.device("cuda")
-        self.model = YOLO(model_path)
-        self.model.to(self.device)
+        self.model, self.backend = load_yolo_model(model_path, device=self.device)
 
         self.net_w = net_size
         self.net_h = net_size
@@ -122,7 +125,14 @@ class CudaHelmetPipeline:
         self._preprocess(frame)
 
         with torch.no_grad():
-            results = self.model(self.d_dst, verbose=False)
+            results = yolo_predict(
+                self.model,
+                self.backend,
+                self.d_dst,
+                imgsz=self.net_w,
+                conf=conf_thresh,
+                verbose=False,
+            )
 
         num_boxes = self._copy_detections(results)
         heatmap = self._postprocess_heatmap(num_boxes, conf_thresh, target_class, decay)
@@ -151,11 +161,9 @@ class CudaHelmetPipeline:
         )
 
     def _copy_detections(self, results) -> int:
-        if not results or results[0].boxes is None:
+        boxes = yolo_boxes_xywhn(results, self.backend, device=self.device)
+        if boxes is None:
             return 0
-
-        det = results[0].boxes
-        boxes = torch.cat([det.xywhn, det.conf.unsqueeze(1), det.cls.unsqueeze(1)], dim=1)
         num_boxes = min(len(boxes), self.max_boxes)
         self.d_dets[:num_boxes] = boxes[:num_boxes]
         return num_boxes

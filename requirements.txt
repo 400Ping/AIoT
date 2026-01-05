@@ -4,7 +4,7 @@ flask
 flask-login
 pandas
 matplotlib
-ultralytics
+ultralytics; python_version >= "3.7"
 opencv-python
 readchar
 numpy<2

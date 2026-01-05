@@ -1,14 +1,15 @@
 # detector/ppe_detector.py
 import cv2
 from datetime import datetime
-from ultralytics import YOLO
 import os
 import requests
 
 try:
     from . import config
+    from .yolo_utils import load_yolo_model, yolo_class_ids, yolo_predict
 except ImportError:  # allow running as a script from detector/
     import config  # type: ignore
+    from yolo_utils import load_yolo_model, yolo_class_ids, yolo_predict  # type: ignore
 
 # Hard Hat Dataset class mapping:
 # 0: helmet, 1: person, 2: head (沒戴安全帽的頭)
@@ -18,7 +19,7 @@ CLASS_HEAD = 2
 
 class PPEDetector:
     def __init__(self, model_path=config.MODEL_PATH):
-        self.model = YOLO(model_path)
+        self.model, self.backend = load_yolo_model(model_path)
 
     def analyze_frame(self, frame):
         """
@@ -27,14 +28,11 @@ class PPEDetector:
         - num_no_helmet: 畫面中沒戴安全帽的人數 (head)
         - status: "safe" / "unsafe"
         """
-        results = self.model(frame, imgsz=640, conf=0.5)
-        r = results[0]
-
         num_people = 0
         num_no_helmet = 0
 
-        for box in r.boxes:
-            cls_id = int(box.cls[0])
+        results = yolo_predict(self.model, self.backend, frame, imgsz=640, conf=0.5)
+        for cls_id in yolo_class_ids(results, self.backend):
             if cls_id == CLASS_PERSON:
                 num_people += 1
             elif cls_id == CLASS_HEAD:
