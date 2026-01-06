@@ -50,9 +50,9 @@ AIoT/
   detector/
     __init__.py          # 將 detector 標記為 Python package 
     cuda_runtime.py      # 封裝 cuda_lib 載入、GPU 前處理/後處理、YOLO 推論
-    cuda_demo.py         # 只用鏡頭的 CUDA Demo（無自走車），會疊 heatmap、上報事件、觸發 LED/蜂鳴器
-    car_main.py          # 主程式：WASD 控車 + CUDA/CPU YOLO 偵測（可關閉手動控制）
-    helmet_cam.py        # CPU 版 demo（不需 CUDA），含事件觸發 + 上報 + LED/蜂鳴器
+    cuda_demo.py         # 舊入口（alias）：等同 `helmet_cam.py --mode cuda`
+    car_main.py          # 小車手動控制（W/A/S/D）
+    helmet_cam.py        # 鏡頭偵測（CPU/CUDA）+ 事件上報 + LED/蜂鳴器
     manual_control.py    # 只做馬達手動控制（WASD），不含偵測
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
     hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO / rpi-lgpio）
@@ -76,22 +76,33 @@ CUDA 路徑會去 `cuda_kernels/build` 或 `cuda_kernels/build/Release` 尋找 `
 若沒有先編譯，`detector` 的 CUDA demo 會載入失敗。
 
 1) 編譯 `cuda_lib`
-- `cd cuda_kernels`
-- `mkdir -p build && cd build`
-- `cmake ..`
-- `cmake --build . --parallel`  
-  Windows 可加：`cmake --build . --config Release --parallel`
+
+```bash
+cd cuda_kernels
+mkdir -p build && cd build
+cmake ..
+cmake --build . --parallel
+```
+
+Windows 可加：`cmake --build . --config Release --parallel`
 
 2) 用 `tools.py` 檢查/效能測試
-- `cd cuda_kernels`
-- 快速檢查 kernel：`python tools.py test`  
-  可加參數：`--width 1920 --height 1080 --dst 640 --count 100`
-- 效能測試：`python tools.py benchmark`
-- 檔案編碼修復（遇到 CUDA 編譯或亂碼問題時）：`python tools.py fix`
+
+```bash
+cd cuda_kernels
+python tools.py test --width 1920 --height 1080 --dst 640 --count 100
+python tools.py benchmark
+python tools.py fix
+```
 
 3) 也可用偵測端內建檢查
-- `cd detector`
-- `python cuda_demo.py --diagnose` 或 `python car_main.py --diagnose`
+
+```bash
+cd detector
+python helmet_cam.py --diagnose
+```
+
+或：`python cuda_demo.py --diagnose`
 
 ## 環境設定
 
@@ -104,11 +115,13 @@ CUDA 路徑會去 `cuda_kernels/build` 或 `cuda_kernels/build/Release` 尋找 `
 `server/app.py` 預設跑在 `5001`，若沒有改程式，請把 `SERVER_URL` 調成 `http://127.0.0.1:5001`。
 若要 LINE 圖片顯示完整網址，需額外設定 `BASE_URL`（例如 ngrok 網址）。
 
+```bash
 cd AIoT
 python3.12 -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
+```
 
 Raspberry Pi 5 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）：
 - `sudo apt-get install python3-opencv python3-rpi.gpio`
@@ -125,43 +138,76 @@ Raspberry Pi 5 建議先用系統套件裝 GPIO / OpenCV（避免 pip 編譯）�
 
 ## 當天 Demo 操作流程（一步一步）
 
+當天建議開 3 個 terminal：`server`、`car_main.py`（控車）、`helmet_cam.py`（偵測）。
+
 1) 啟動虛擬環境與依賴（首次）
-- `cd AIoT`
-- `python3.12 -m venv .venv`
-- `source .venv/bin/activate`
-- `pip install -r requirements.txt`
+
+```bash
+cd AIoT
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
 2) 啟動後端 Flask + LINE 通知
-- 進入 server：`cd server`
-- 設定 LINE env（若要推播）：`export LINE_CHANNEL_ACCESS_TOKEN=...`、`export LINE_USER_ID=...`
-- 若要圖片顯示完整 URL：`export BASE_URL=https://xxxx.ngrok-free.app`
-- 啟動：`python app.py`
-- 後台登入帳密：`admin / admin123`
+
+```bash
+cd server
+export LINE_CHANNEL_ACCESS_TOKEN=...
+export LINE_USER_ID=...
+export BASE_URL=https://xxxx.ngrok-free.app
+python app.py
+```
+
+後台登入帳密：`admin / admin123`
 
 3) 準備模型與路徑
 - 預設模型：`detector/models/best.pt`，或在 `detector/config.py` 的 `MODEL_PATH` 改成你的實際路徑。
 - 違規截圖輸出目錄：`config.IMG_SAVE_DIR`（若在筆電/桌機，可改成 repo 相對路徑 `server/static/violations` 的絕對路徑），請確保目錄存在且 Flask 靜態檔路徑一致。
 
 4) 檢查 CUDA 模組（可選，GPU 平台）
-- `cd detector`
-- `python car_main.py --diagnose` 或 `python cuda_demo.py --diagnose`
 
-5) Demo（不帶自走車，僅鏡頭 + 事件 + LED/蜂鳴器）
-- GPU 平台：`python cuda_demo.py`（預設 `--source 0`），若要指定其他鏡頭或影片，可加 `--source <index|video.mp4>`
-- 參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 3 秒）。
-- 當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
+```bash
+cd detector
+python helmet_cam.py --diagnose
+```
 
-6) Demo（CPU 版，不需 CUDA，Raspberry Pi 5 建議）
-- `python helmet_cam.py`（固定用攝影機 0，安全帽偵測 + 事件上報 + LED/蜂鳴器）
+或：`python cuda_demo.py --diagnose`
 
-7) Demo（帶自走車 + WASD）
-- `python car_main.py --cpu`（Raspberry Pi 5 建議，預設 `--source 0`；可改 `--source <index|video.mp4>`）
-- `--no-manual` 可關閉手動控制；`--model` 可自訂模型路徑。
-- CPU 模式也會依連續 unsafe 時間觸發事件，上報門檻可用 `--unsafe-threshold` 調整。
-- 控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
+5) 偵測端（鏡頭 + 事件 + LED/蜂鳴器）
+
+GPU 平台：
+
+```bash
+python helmet_cam.py --mode cuda --source 0
+```
+
+參數：`--source` 攝影機索引或影片路徑；`--unsafe-threshold` 連續 unsafe 秒數才算違規（預設 10 秒）。
+當畫面連續判定 unsafe：會觸發紅燈/蜂鳴器（若 GPIO 可用）、存截圖、POST 到 Flask，若有 LINE env 則推播。
+
+6) 偵測端（CPU 版，不需 CUDA，Raspberry Pi 5 建議）
+
+```bash
+python helmet_cam.py --mode cpu
+```
+
+固定用攝影機 0，安全帽偵測 + 事件上報 + LED/蜂鳴器。
+
+7) 小車控制（WASD）
+
+```bash
+python car_main.py
+```
+
+控制鍵：`w` 前進、`s` 後退、`a` 左轉、`d` 右轉、`space` 停止、`q` 離開。
 
 8) 手動馬達測試（無偵測）
-- `python manual_control.py`（W/A/S/D 控制小車，Space 停止，Q 離開）
+
+```bash
+python manual_control.py
+```
+
+W/A/S/D 控制小車，Space 停止，Q 離開。
 
 9) 預期畫面與觀察點
 - CUDA 模式會顯示原始畫面 + heatmap 疊圖，CPU 模式會疊狀態文字。

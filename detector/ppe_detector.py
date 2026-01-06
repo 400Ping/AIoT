@@ -1,15 +1,14 @@
 # detector/ppe_detector.py
-import cv2
-from datetime import datetime
-import os
-import requests
-
 try:
     from . import config
     from .yolo_utils import load_yolo_model, yolo_class_ids, yolo_predict
+    from .event_utils import save_violation_image as save_violation_image_impl
+    from .event_utils import send_event as send_event_impl
 except ImportError:  # allow running as a script from detector/
     import config  # type: ignore
     from yolo_utils import load_yolo_model, yolo_class_ids, yolo_predict  # type: ignore
+    from event_utils import save_violation_image as save_violation_image_impl  # type: ignore
+    from event_utils import send_event as send_event_impl  # type: ignore
 
 # Hard Hat Dataset class mapping:
 # 0: helmet, 1: person, 2: head (沒戴安全帽的頭)
@@ -46,29 +45,7 @@ class PPEDetector:
         }
 
     def save_violation_image(self, frame):
-        os.makedirs(config.IMG_SAVE_DIR, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"violation_{ts}.jpg"
-        path = os.path.join(config.IMG_SAVE_DIR, filename)
-        cv2.imwrite(path, frame)
-        # 給 Flask 用的 URL 路徑
-        image_url = f"/static/violations/{filename}"
-        return path, image_url
+        return save_violation_image_impl(frame)
 
     def send_event(self, result, image_url):
-        payload = {
-            "timestamp": datetime.now().isoformat(),
-            "camera_id": config.CAMERA_ID,
-            "status": result["status"],
-            "num_people": result["num_people"],
-            "num_no_helmet": result["num_no_helmet"],
-            "image_url": image_url,
-        }
-        try:
-            requests.post(
-                f"{config.SERVER_URL}/api/events",
-                json=payload,
-                timeout=1.0,
-            )
-        except Exception as e:
-            print(f"[WARN] Failed to send event to server: {e}")
+        return send_event_impl(result, image_url)
