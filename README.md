@@ -52,14 +52,17 @@ AIoT/
     cuda_runtime.py      # 封裝 cuda_lib 載入、GPU 前處理/後處理、YOLO 推論
     cuda_demo.py         # 舊入口（alias）：等同 `helmet_cam.py --mode cuda`
     car_main.py          # 小車手動控制（W/A/S/D）
+    event_utils.py       # 事件上報/寫檔共用工具
+    gpio_compat.py       # GPIO 相容層（RPi.GPIO / rpi-lgpio）
     helmet_cam.py        # 鏡頭偵測（CPU/CUDA）+ 事件上報 + LED/蜂鳴器
     manual_control.py    # 只做馬達手動控制（WASD），不含偵測
     motor_controller.py  # 馬達控制 (L298N + DC Motors, 使用 BCM 腳位)
     hardware.py          # LED / Buzzer / Button 控制（RPi.GPIO / rpi-lgpio）
     ppe_detector.py      # YOLO 工程帽偵測 + 截圖 + 呼叫 /api/events
+    yolo_utils.py        # YOLO 載入/推論輔助工具
     config.py            # SERVER_URL, MODEL_PATH, IMG_SAVE_DIR, GPIO 腳位等
-    models/
-      best.pt            # 訓練好的 YOLO 安全帽模型（唯一使用的模型放這裡）
+  models/
+    best.pt              # 訓練好的 YOLO 安全帽模型（唯一使用的模型放這裡）
   cuda_kernels/          # CUDA 前/後處理模組（單一路徑集中 build，不再放模型檔）
     CMakeLists.txt       # 以 pybind11 建出 Python 模組 cuda_lib
     src/                 # preprocess/postprocess CUDA 與綁定 (pybind11 -> cuda_lib)
@@ -108,8 +111,9 @@ python helmet_cam.py --diagnose
 
 `detector/config.py` 設定連線/路徑/腳位：
 - `SERVER_URL`：偵測端上報的 Flask 位址（預設為 `http://127.0.0.1:5001`，可用環境變數覆寫）
+- `CAMERA_ID`：攝影機/裝置識別字串（預設 `cam-01`，可用環境變數覆寫）
 - `MODEL_PATH`：YOLO 模型路徑（預設 `AIoT/models/best.pt`，可用環境變數覆寫）
-- `IMG_SAVE_DIR`：違規截圖存放資料夾（可用環境變數覆寫）
+- `IMG_SAVE_DIR`：違規截圖存放資料夾（預設 `AIoT/server/static/violations`，可用環境變數覆寫）
 - GPIO 腳位：`RED_LED_PIN / GREEN_LED_PIN / BUZZER_PIN / BUTTON_PIN`
 
 `server/app.py` 預設跑在 `5001`，若沒有改程式，請把 `SERVER_URL` 調成 `http://127.0.0.1:5001`。
@@ -162,8 +166,8 @@ python app.py
 後台登入帳密：`admin / admin123`
 
 3) 準備模型與路徑
-- 預設模型：`detector/models/best.pt`，或在 `detector/config.py` 的 `MODEL_PATH` 改成你的實際路徑。
-- 違規截圖輸出目錄：`config.IMG_SAVE_DIR`（若在筆電/桌機，可改成 repo 相對路徑 `server/static/violations` 的絕對路徑），請確保目錄存在且 Flask 靜態檔路徑一致。
+- 預設模型：`models/best.pt`，或在 `detector/config.py` 的 `MODEL_PATH` 改成你的實際路徑。
+- 違規截圖輸出目錄：`config.IMG_SAVE_DIR`（預設 `server/static/violations`），請確保目錄存在且 Flask 靜態檔路徑一致。
 
 4) 檢查 CUDA 模組（可選，GPU 平台）
 
